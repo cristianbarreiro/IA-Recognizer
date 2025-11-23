@@ -29,6 +29,14 @@ except RuntimeError as error:
 # Modelo de lenguaje a utilizar. Ajustable según necesidades futuras.
 MODELO_LENGUAJE = "gpt-4.1-mini"
 
+# Temperatura de reformulación: valor bajo (0.3) para respuestas más deterministas
+# y consistentes, reduciendo la creatividad para mantener fidelidad al texto original.
+REFORMULATION_TEMPERATURE = 0.3
+
+# Máximo de tokens en la respuesta: 200 es suficiente para una pregunta reformulada
+# típica y su explicación breve, sin permitir respuestas excesivamente largas.
+MAX_RESPONSE_TOKENS = 200
+
 # Mensaje de sistema que guía el comportamiento del modelo de reformulación.
 MENSAJE_SISTEMA = (
     "Eres un asistente especializado en reinterpretar y reformular preguntas de usuarios en español. "
@@ -83,8 +91,8 @@ async def reformular_pregunta(entrada: PreguntaEntrada) -> PreguntaReformulada:
                 {"role": "system", "content": MENSAJE_SISTEMA},
                 {"role": "user", "content": mensaje_usuario},
             ],
-            temperature=0.3,
-            max_output_tokens=200,
+            temperature=REFORMULATION_TEMPERATURE,
+            max_output_tokens=MAX_RESPONSE_TOKENS,
             response_format={"type": "text"},
         )
     except openai.OpenAIError as error:
