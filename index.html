@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neon Circuit Canvas Background</title>
+    <style>
+      :root {
+        --bg-color: #05060a;
+        --panel-bg: rgba(15, 18, 28, 0.55);
+        --panel-border: rgba(136, 177, 255, 0.35);
+        --text-color: #e9eeff;
+      }
+
+      body.light {
+        --bg-color: #f7f9ff;
+        --panel-bg: rgba(255, 255, 255, 0.78);
+        --panel-border: rgba(95, 128, 220, 0.35);
+        --text-color: #1d2748;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+      }
+
+      body {
+        overflow: hidden;
+        background: var(--bg-color);
+        color: var(--text-color);
+        font-family: Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+        transition: background-color 250ms ease, color 250ms ease;
+      }
+
+      #bg {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .controls {
+        position: fixed;
+        top: 16px;
+        right: 16px;
+        z-index: 10;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: var(--panel-bg);
+        border: 1px solid var(--panel-border);
+        backdrop-filter: blur(8px);
+      }
+
+      .controls label {
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+
+      .switch {
+        position: relative;
+        width: 54px;
+        height: 30px;
+        border-radius: 999px;
+        border: none;
+        cursor: pointer;
+        background: linear-gradient(120deg, #4f64ff, #7f41ff);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset,
+          0 8px 20px rgba(79, 100, 255, 0.35);
+        padding: 0;
+      }
+
+      .thumb {
+        position: absolute;
+        top: 3px;
+        left: 3px;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+        transition: transform 200ms ease;
+      }
+
+      body.light .thumb {
+        transform: translateX(24px);
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="bg" aria-hidden="true"></canvas>
+
+    <div class="controls">
+      <label for="themeToggle">Theme</label>
+      <button id="themeToggle" class="switch" type="button" aria-label="Toggle dark and light theme">
+        <span class="thumb"></span>
+      </button>
+    </div>
+
+    <script>
+      // Canvas setup
+      const canvas = document.getElementById('bg');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      const state = {
+        dark: true,
+        dpr: Math.min(window.devicePixelRatio || 1, 2),
+        angle: -Math.PI / 5,
+        spacing: 34,
+        // Layer 1 movement (pixels per second): subtle, continuous drift.
+        speedA: 18,
+        // Layer 2 movement creates a "loading.io"-style living texture.
+        speedB: 9,
+        offsetA: 0,
+        offsetB: 0,
+        time: 0,
+      };
+
+      const themes = {
+        dark: {
+          background: '#05060a',
+          glow: [
+            ['#3be9ff', '#7d56ff'],
+            ['#59dfff', '#ab60ff'],
+            ['#2ea8ff', '#7f46ff'],
+          ],
+          lineAlpha: 0.8,
+        },
+        light: {
+          background: '#f7f9ff',
+          glow: [
+            ['#3f77ff', '#7f5cff'],
+            ['#2ca9c9', '#8a4fff'],
+            ['#4f5de6', '#31c0d6'],
+          ],
+          lineAlpha: 0.6,
+        },
+      };
+
+      function resizeCanvas() {
+        state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.width = Math.floor(window.innerWidth * state.dpr);
+        canvas.height = Math.floor(window.innerHeight * state.dpr);
+        canvas.style.width = `${window.innerWidth}px`;
+        canvas.style.height = `${window.innerHeight}px`;
+      }
+
+      // Draw one stripe layer. `offset` controls where the stripe grid starts.
+      // Wrapping with `% state.spacing` guarantees a seamless loop with no visual jump.
+      function drawStripeLayer(theme, width, height, offset, blurScale, alphaScale, timeShift) {
+        const diag = Math.hypot(width, height);
+        const count = Math.ceil(diag / state.spacing) + 8;
+
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+        ctx.rotate(state.angle);
+
+        for (let i = -count; i <= count; i++) {
+          const x = i * state.spacing + offset;
+          const y1 = -diag;
+          const y2 = diag;
+
+          const palette = theme.glow[(i % theme.glow.length + theme.glow.length) % theme.glow.length];
+          const gradient = ctx.createLinearGradient(x, y1, x, y2);
+
+          // Animated stop position adds a subtle traveling highlight,
+          // similar to animated SVG loading backgrounds.
+          const wave = 0.5 + 0.5 * Math.sin(state.time * 1.4 + i * 0.25 + timeShift);
+          const mid = 0.2 + wave * 0.6;
+          gradient.addColorStop(0, palette[0]);
+          gradient.addColorStop(mid, '#ffffff');
+          gradient.addColorStop(1, palette[1]);
+
+          // Main glowing stroke.
+          ctx.beginPath();
+          ctx.strokeStyle = gradient;
+          ctx.lineWidth = 1.8;
+          ctx.globalAlpha = theme.lineAlpha * alphaScale;
+          ctx.shadowColor = palette[0];
+          ctx.shadowBlur = (state.dark ? 15 : 10) * blurScale;
+          ctx.moveTo(x, y1);
+          ctx.lineTo(x, y2);
+          ctx.stroke();
+
+          // Crisp inner core to keep lines readable while moving.
+          ctx.beginPath();
+          ctx.lineWidth = 0.85;
+          ctx.globalAlpha = state.dark ? 0.45 : 0.32;
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#ffffff';
+          ctx.moveTo(x + 0.45, y1);
+          ctx.lineTo(x + 0.45, y2);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      function drawFrame(dt) {
+        const theme = state.dark ? themes.dark : themes.light;
+        const width = canvas.width / state.dpr;
+        const height = canvas.height / state.dpr;
+
+        ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+        ctx.fillStyle = theme.background;
+        ctx.fillRect(0, 0, width, height);
+
+        // Animation loop logic:
+        // 1) Increase elapsed time for sine-wave highlights.
+        // 2) Move each offset forward every frame.
+        // 3) Wrap with modulo so the pattern repeats seamlessly forever.
+        state.time += dt;
+        state.offsetA = (state.offsetA + state.speedA * dt) % state.spacing;
+        state.offsetB = (state.offsetB + state.speedB * dt) % state.spacing;
+
+        drawStripeLayer(theme, width, height, state.offsetA, 1, 1, 0);
+        // Second softer layer adds smooth depth/motion without increasing speed too much.
+        drawStripeLayer(theme, width, height, state.offsetB + state.spacing * 0.5, 0.65, 0.45, Math.PI / 3);
+
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+      }
+
+      let last = performance.now();
+      // requestAnimationFrame syncs drawing with screen refresh for smooth animation.
+      function animate(now) {
+        const dt = Math.min((now - last) / 1000, 0.033);
+        last = now;
+        drawFrame(dt);
+        requestAnimationFrame(animate);
+      }
+
+      const toggle = document.getElementById('themeToggle');
+      toggle.addEventListener('click', () => {
+        state.dark = !state.dark;
+        document.body.classList.toggle('light', !state.dark);
+      });
+
+      window.addEventListener('resize', resizeCanvas);
+      resizeCanvas();
+      requestAnimationFrame(animate);
+    </script>
+  </body>
+</html>
