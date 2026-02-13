@@ -6,17 +6,17 @@
     <title>Neon Circuit Canvas Background</title>
     <style>
       :root {
-        --bg-color: #05060a;
-        --panel-bg: rgba(15, 18, 28, 0.55);
-        --panel-border: rgba(136, 177, 255, 0.35);
-        --text-color: #e9eeff;
+        --bg-color: #06070b;
+        --panel-bg: rgba(13, 16, 24, 0.56);
+        --panel-border: rgba(138, 180, 255, 0.35);
+        --text-color: #ebf0ff;
       }
 
       body.light {
         --bg-color: #f7f9ff;
         --panel-bg: rgba(255, 255, 255, 0.78);
-        --panel-border: rgba(95, 128, 220, 0.35);
-        --text-color: #1d2748;
+        --panel-border: rgba(102, 132, 220, 0.36);
+        --text-color: #1d2850;
       }
 
       * {
@@ -35,7 +35,7 @@
         background: var(--bg-color);
         color: var(--text-color);
         font-family: Inter, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
-        transition: background-color 250ms ease, color 250ms ease;
+        transition: background-color 220ms ease, color 220ms ease;
       }
 
       #bg {
@@ -74,9 +74,9 @@
         border-radius: 999px;
         border: none;
         cursor: pointer;
-        background: linear-gradient(120deg, #4f64ff, #7f41ff);
-        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.2) inset,
-          0 8px 20px rgba(79, 100, 255, 0.35);
+        background: linear-gradient(120deg, #4d65ff, #8049ff);
+        box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.18) inset,
+          0 8px 18px rgba(79, 100, 255, 0.28);
         padding: 0;
       }
 
@@ -88,7 +88,7 @@
         height: 24px;
         border-radius: 50%;
         background: #fff;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
         transition: transform 200ms ease;
       }
 
@@ -108,44 +108,108 @@
     </div>
 
     <script>
-      // Canvas setup
       const canvas = document.getElementById('bg');
       const ctx = canvas.getContext('2d', { alpha: false });
 
       const state = {
         dark: true,
         dpr: Math.min(window.devicePixelRatio || 1, 2),
-        angle: -Math.PI / 5,
-        spacing: 34,
-        // Layer 1 movement (pixels per second): subtle, continuous drift.
-        speedA: 18,
-        // Layer 2 movement creates a "loading.io"-style living texture.
-        speedB: 9,
-        offsetA: 0,
-        offsetB: 0,
         time: 0,
+        traces: [],
       };
 
       const themes = {
         dark: {
-          background: '#05060a',
-          glow: [
-            ['#3be9ff', '#7d56ff'],
-            ['#59dfff', '#ab60ff'],
-            ['#2ea8ff', '#7f46ff'],
+          background: '#06070b',
+          colors: [
+            ['#2ee7ff', '#6c72ff'],
+            ['#34d3ff', '#a65eff'],
           ],
-          lineAlpha: 0.8,
+          baseAlpha: 0.35,
+          pulseAlpha: 0.92,
+          glowBlur: 10,
         },
         light: {
           background: '#f7f9ff',
-          glow: [
-            ['#3f77ff', '#7f5cff'],
-            ['#2ca9c9', '#8a4fff'],
-            ['#4f5de6', '#31c0d6'],
+          colors: [
+            ['#3778ff', '#7660ff'],
+            ['#2aaec8', '#9057ff'],
           ],
-          lineAlpha: 0.6,
+          baseAlpha: 0.26,
+          pulseAlpha: 0.7,
+          glowBlur: 7,
         },
       };
+
+      function hash(n) {
+        return (Math.sin(n * 127.1) * 43758.5453123) % 1;
+      }
+
+      function positiveHash(n) {
+        return (hash(n) + 1) % 1;
+      }
+
+      function traceLength(points) {
+        let len = 0;
+        for (let i = 1; i < points.length; i++) {
+          const dx = points[i].x - points[i - 1].x;
+          const dy = points[i].y - points[i - 1].y;
+          len += Math.hypot(dx, dy);
+        }
+        return len;
+      }
+
+      // Build "circuit" paths: mostly horizontal tracks with occasional 45° bends.
+      function buildTraces(width, height) {
+        const traces = [];
+        const margin = 180;
+        const spacing = Math.max(36, Math.min(52, height / 16));
+        const startY = -spacing;
+        const endY = height + spacing;
+
+        let row = 0;
+        for (let y = startY; y <= endY; y += spacing) {
+          const points = [{ x: -margin, y }];
+          let x = -margin;
+          let currentY = y;
+          let segment = 0;
+
+          while (x < width + margin) {
+            const seed = row * 97 + segment * 31;
+            const hLen = 90 + positiveHash(seed + 1) * 80;
+            x += hLen;
+            points.push({ x, y: currentY });
+
+            if (x > width + margin) break;
+
+            // Only some segments bend, keeping movement calm (not too flashy/busy).
+            if (positiveHash(seed + 2) > 0.52) {
+              const dir = positiveHash(seed + 3) > 0.5 ? 1 : -1;
+              const amp = 14 + positiveHash(seed + 4) * 16;
+              const diagLen = 30 + positiveHash(seed + 5) * 24;
+              x += diagLen;
+              currentY += dir * amp;
+              points.push({ x, y: currentY });
+            }
+
+            segment++;
+          }
+
+          const totalLen = traceLength(points);
+          traces.push({
+            points,
+            totalLen,
+            // Very subtle speed to avoid eye strain.
+            speed: 0.028 + positiveHash(row * 13.7) * 0.02,
+            phase: positiveHash(row * 19.3),
+            colorIndex: row % 2,
+          });
+
+          row++;
+        }
+
+        return traces;
+      }
 
       function resizeCanvas() {
         state.dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -153,60 +217,21 @@
         canvas.height = Math.floor(window.innerHeight * state.dpr);
         canvas.style.width = `${window.innerWidth}px`;
         canvas.style.height = `${window.innerHeight}px`;
+        state.traces = buildTraces(window.innerWidth, window.innerHeight);
       }
 
-      // Draw one stripe layer. `offset` controls where the stripe grid starts.
-      // Wrapping with `% state.spacing` guarantees a seamless loop with no visual jump.
-      function drawStripeLayer(theme, width, height, offset, blurScale, alphaScale, timeShift) {
-        const diag = Math.hypot(width, height);
-        const count = Math.ceil(diag / state.spacing) + 8;
-
-        ctx.save();
-        ctx.translate(width / 2, height / 2);
-        ctx.rotate(state.angle);
-
-        for (let i = -count; i <= count; i++) {
-          const x = i * state.spacing + offset;
-          const y1 = -diag;
-          const y2 = diag;
-
-          const palette = theme.glow[(i % theme.glow.length + theme.glow.length) % theme.glow.length];
-          const gradient = ctx.createLinearGradient(x, y1, x, y2);
-
-          // Animated stop position adds a subtle traveling highlight,
-          // similar to animated SVG loading backgrounds.
-          const wave = 0.5 + 0.5 * Math.sin(state.time * 1.4 + i * 0.25 + timeShift);
-          const mid = 0.2 + wave * 0.6;
-          gradient.addColorStop(0, palette[0]);
-          gradient.addColorStop(mid, '#ffffff');
-          gradient.addColorStop(1, palette[1]);
-
-          // Main glowing stroke.
-          ctx.beginPath();
-          ctx.strokeStyle = gradient;
-          ctx.lineWidth = 1.8;
-          ctx.globalAlpha = theme.lineAlpha * alphaScale;
-          ctx.shadowColor = palette[0];
-          ctx.shadowBlur = (state.dark ? 15 : 10) * blurScale;
-          ctx.moveTo(x, y1);
-          ctx.lineTo(x, y2);
-          ctx.stroke();
-
-          // Crisp inner core to keep lines readable while moving.
-          ctx.beginPath();
-          ctx.lineWidth = 0.85;
-          ctx.globalAlpha = state.dark ? 0.45 : 0.32;
-          ctx.shadowBlur = 0;
-          ctx.strokeStyle = '#ffffff';
-          ctx.moveTo(x + 0.45, y1);
-          ctx.lineTo(x + 0.45, y2);
-          ctx.stroke();
+      function strokePolyline(points) {
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) {
+          ctx.lineTo(points[i].x, points[i].y);
         }
-
-        ctx.restore();
+        ctx.stroke();
       }
 
       function drawFrame(dt) {
+        state.time += dt;
+
         const theme = state.dark ? themes.dark : themes.light;
         const width = canvas.width / state.dpr;
         const height = canvas.height / state.dpr;
@@ -215,24 +240,51 @@
         ctx.fillStyle = theme.background;
         ctx.fillRect(0, 0, width, height);
 
-        // Animation loop logic:
-        // 1) Increase elapsed time for sine-wave highlights.
-        // 2) Move each offset forward every frame.
-        // 3) Wrap with modulo so the pattern repeats seamlessly forever.
-        state.time += dt;
-        state.offsetA = (state.offsetA + state.speedA * dt) % state.spacing;
-        state.offsetB = (state.offsetB + state.speedB * dt) % state.spacing;
+        for (const trace of state.traces) {
+          const palette = theme.colors[trace.colorIndex];
 
-        drawStripeLayer(theme, width, height, state.offsetA, 1, 1, 0);
-        // Second softer layer adds smooth depth/motion without increasing speed too much.
-        drawStripeLayer(theme, width, height, state.offsetB + state.spacing * 0.5, 0.65, 0.45, Math.PI / 3);
+          // Base circuit trace (steady low-intensity glow).
+          const baseGradient = ctx.createLinearGradient(-100, trace.points[0].y, width + 100, trace.points[0].y + 30);
+          baseGradient.addColorStop(0, palette[0]);
+          baseGradient.addColorStop(1, palette[1]);
 
+          ctx.strokeStyle = baseGradient;
+          ctx.lineWidth = 1.6;
+          ctx.globalAlpha = theme.baseAlpha;
+          ctx.shadowColor = palette[0];
+          ctx.shadowBlur = theme.glowBlur;
+          ctx.setLineDash([]);
+          strokePolyline(trace.points);
+
+          // Moving light pulse: a small bright segment that travels over the same path.
+          // It loops smoothly with modulo (progress % 1), so there is no jump/reset.
+          const progress = (state.time * trace.speed + trace.phase) % 1;
+          const pulseLength = Math.max(28, Math.min(90, trace.totalLen * 0.09));
+
+          ctx.globalAlpha = theme.pulseAlpha;
+          ctx.shadowBlur = theme.glowBlur * 1.25;
+          ctx.lineWidth = 2.1;
+          ctx.setLineDash([pulseLength, trace.totalLen]);
+          ctx.lineDashOffset = -progress * trace.totalLen;
+          strokePolyline(trace.points);
+
+          // Inner core to make the pulse crisp but still soft.
+          ctx.globalAlpha = state.dark ? 0.42 : 0.28;
+          ctx.shadowBlur = 0;
+          ctx.strokeStyle = '#ffffff';
+          ctx.lineWidth = 0.8;
+          ctx.setLineDash([pulseLength * 0.4, trace.totalLen]);
+          ctx.lineDashOffset = -progress * trace.totalLen;
+          strokePolyline(trace.points);
+        }
+
+        ctx.setLineDash([]);
         ctx.globalAlpha = 1;
         ctx.shadowBlur = 0;
       }
 
       let last = performance.now();
-      // requestAnimationFrame syncs drawing with screen refresh for smooth animation.
+      // requestAnimationFrame keeps animation smooth and synced to display refresh.
       function animate(now) {
         const dt = Math.min((now - last) / 1000, 0.033);
         last = now;
